@@ -6,6 +6,7 @@ from fsdict import FSDict
 def main(argv=None):
     logging.basicConfig(level=logging.DEBUG)
     filedict = FSDict(argv[1] if len(argv) > 1 else None)
+    print(len(filedict))
     for subfile in filedict:
         print(filedict[subfile])
 
