@@ -7,8 +7,8 @@ import logging
 LOGGER = logging.getLogger('fsdict')
 DEBUG = LOGGER.debug
 
-class FSDict(object):
-    def __init__(self, basedir=None):
+class FSDict(dict):
+    def __init__(self, basedir=None, read_func=None, write_func=None, ignore_func=None):
         if basedir is None:
             basedir = '.'
         try:
@@ -18,6 +18,9 @@ class FSDict(object):
         if os.path.isfile(basedir):
             raise TypeError('FSDict cannot be created from file')
         self.basedir = basedir
+        self.read_func = read_func
+        self.write_func = write_func
+        self.ignore_func = ignore_func
 
     def _build_path(self, filepath):
         if filepath is None:
@@ -35,8 +38,12 @@ class FSDict(object):
         if os.path.isfile(filepath):
             with open(filepath, 'rb') as fid:
                 data = fid.read()
-            return data
-        return FSDict(filepath)
+            if self.read_func:
+                filename = os.path.basename(filepath)
+                return self.read_func(filename, data)
+            else:
+                return data
+        return FSDict(filepath, self.read_func, self.write_func, self.ignore_func)
 
     def __setitem__(self, filepath, val):
         filepath = self._build_path(filepath)
@@ -46,8 +53,13 @@ class FSDict(object):
         if val is None and os.path.isdir(filepath):
             os.rmdir(filepath)
             return
-        if not hasattr(val, 'decode'):
-            raise TypeError('Can\'t write {} to file'.format(val))
+        if self.write_func:
+            filename = os.path.basename(filepath)
+            output = self.write_func(filename, val)
+        else:
+            output = val
+        if not hasattr(output, 'decode'):
+            raise TypeError('Can\'t write {} to file'.format(repr(output)))
         dirpath = os.path.dirname(filepath)
         DEBUG('creating directories: {}'.format(filepath))
         try:
@@ -58,7 +70,7 @@ class FSDict(object):
             else:
                 raise
         with open(filepath, 'wb') as fid:
-            fid.write(val)
+            fid.write(output)
 
     def force_delete(self, key):
         try:
@@ -74,7 +86,6 @@ class FSDict(object):
                 return
             raise
 
-
     def __repr__(self):
         return 'FSDict({})'.format(repr(self.basedir))
 
@@ -82,7 +93,7 @@ class FSDict(object):
         return (key for key in self.keys())
 
     def __len__(self):
-        return len(self.keys)
+        return len(self.keys())
 
     def iteritems(self):
         return ((key, self[key]) for key in self.keys())
@@ -92,6 +103,9 @@ class FSDict(object):
 
     def keys(self):
         try:
-            return os.listdir(self.basedir)
+            if self.ignore_func:
+                return [key for key in os.listdir(self.basedir) if self.ignore_func(key)]
+            else:
+                return os.listdir(self.basedir)
         except OSError:
             return []

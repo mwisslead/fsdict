@@ -6,17 +6,19 @@ import base64
 
 from fsdict import FSDict
 
-class MyEncoder(json.JSONEncoder):
-    def default(self, o):
-        retval = {}
-        for filename in o:
-            try:
-                try:
-                    retval[filename] = o[filename].decode('UTF-8')
-                except (AttributeError, UnicodeDecodeError):
-                    retval[filename] = base64.b64encode(o[filename])
-            except TypeError:
-                retval[filename] = o[filename]
-        return retval
+def decode_file(filename, data):
+    try:
+        return data.decode('UTF-8')
+    except (AttributeError, UnicodeDecodeError):
+        return base64.b64encode(data).decode('UTF-8')
 
-print(json.dumps(FSDict(sys.argv[1] if len(sys.argv) > 1 else None), indent=4, cls=MyEncoder))
+def ignore(filename):
+    if filename.endswith('.pyc'):
+        return False
+    elif filename.startswith('.'):
+        return False
+    elif filename == '__pycache__':
+        return False
+    return True
+
+print(json.dumps(FSDict(sys.argv[1] if len(sys.argv) > 1 else None, read_func=decode_file, ignore_func=ignore), indent=4))
