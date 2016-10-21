@@ -6,11 +6,13 @@ import base64
 
 from fsdict import FSDict
 
-def decode_file(filename, data):
-    try:
-        return data.decode('UTF-8')
-    except (AttributeError, UnicodeDecodeError):
-        return base64.b64encode(data).decode('UTF-8')
+def decode_file(filepath):
+    with open(filepath, 'rb') as fid:
+        data = fid.read()
+        try:
+            return data.decode('UTF-8')
+        except (AttributeError, UnicodeDecodeError):
+            return base64.b64encode(data).decode('UTF-8')
 
 def ignore(filename):
     if filename.endswith('.pyc'):

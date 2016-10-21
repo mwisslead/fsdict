@@ -18,9 +18,12 @@ class FSDict(dict):
         if os.path.isfile(basedir):
             raise TypeError('FSDict cannot be created from file')
         self.basedir = basedir
-        self.read_func = read_func
-        self.write_func = write_func
-        self.ignore_func = ignore_func
+        if read_func:
+            self.read_func = read_func
+        if write_func:
+            self.write_func = write_func
+        if ignore_func:
+            self.ignore_func = ignore_func
 
     def _build_path(self, filepath):
         if filepath is None:
@@ -33,31 +36,17 @@ class FSDict(dict):
         except AttributeError:
             raise TypeError('Cannot convert {} to pathname.'.format(filepath))
 
+    def read_func(self, filepath):
+        with open(filepath) as fid:
+            return fid.read()
+
     def __getitem__(self, filepath):
         filepath = self._build_path(filepath)
         if os.path.isfile(filepath):
-            with open(filepath, 'rb') as fid:
-                data = fid.read()
-            if self.read_func:
-                filename = os.path.basename(filepath)
-                return self.read_func(filename, data)
-            else:
-                return data
+            return self.read_func(filepath)
         return FSDict(filepath, self.read_func, self.write_func, self.ignore_func)
 
-    def __setitem__(self, filepath, val):
-        filepath = self._build_path(filepath)
-        if val is None and os.path.isfile(filepath):
-            os.remove(filepath)
-            return
-        if val is None and os.path.isdir(filepath):
-            os.rmdir(filepath)
-            return
-        if self.write_func:
-            filename = os.path.basename(filepath)
-            output = self.write_func(filename, val)
-        else:
-            output = val
+    def write_func(self, filepath, output):
         if not hasattr(output, 'decode'):
             raise TypeError('Can\'t write {} to file'.format(repr(output)))
         dirpath = os.path.dirname(filepath)
@@ -71,6 +60,16 @@ class FSDict(dict):
                 raise
         with open(filepath, 'wb') as fid:
             fid.write(output)
+
+    def __setitem__(self, filepath, val):
+        filepath = self._build_path(filepath)
+        if val is None and os.path.isfile(filepath):
+            os.remove(filepath)
+            return
+        if val is None and os.path.isdir(filepath):
+            os.rmdir(filepath)
+            return
+        self.write_func(filepath, val)
 
     def force_delete(self, key):
         try:
@@ -101,11 +100,11 @@ class FSDict(dict):
     def items(self):
         return self.iteritems()
 
+    def ignore_func(self, filepath):
+        return True
+
     def keys(self):
         try:
-            if self.ignore_func:
-                return [key for key in os.listdir(self.basedir) if self.ignore_func(key)]
-            else:
-                return os.listdir(self.basedir)
+            return [key for key in os.listdir(self.basedir) if self.ignore_func(key)]
         except OSError:
             return []
